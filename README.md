@@ -35,7 +35,9 @@ ClipVault 是一个本地运行的 Windows 剪贴板管理工具。它会记录�
 
 ### 方式一：直接运行发布版
 
-从 GitHub Releases 下载 `ClipVault.exe`，双击运行即可。
+直接下载：[ClipVault.exe](https://github.com/amirage7/ClipVault/releases/latest/download/ClipVault.exe)。下载后双击运行即可。
+
+也可以在 [Releases 页面](https://github.com/amirage7/ClipVault/releases) 查看历史版本和发布说明。
 
 首次运行后，应用会：
 
