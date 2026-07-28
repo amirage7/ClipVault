@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+env/
+build_venv/
+
+# Local app data and private clipboard history
+data/
+exports/
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.bak
+
+# Build outputs
+build/
+dist/
+release/
+.buildtmp/
+*.spec.bak
+build-output.log
+
+# Local agent/tooling state
+.agents/
+.superpowers/
+.codex/
+docs/superpowers/
+.git.invalid-empty-*/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
