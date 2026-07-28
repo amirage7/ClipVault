@@ -28,9 +28,14 @@ build-output.log
 
 # Local agent/tooling state
 .agents/
+.worktrees/
 .superpowers/
 .codex/
 docs/superpowers/
+!docs/superpowers/
+docs/superpowers/*
+!docs/superpowers/specs/
+!docs/superpowers/specs/2026-07-28-portable-data-migration-design.md
 .git.invalid-empty-*/
 
 # OS/editor

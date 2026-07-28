@@ -41,7 +41,7 @@ ClipVault 是一个本地运行的 Windows 剪贴板管理工具。它会记录�
 
 首次运行后，应用会：
 
-- 在本机创建 `data/` 目录保存配置和剪贴板历史。
+- 在 `%LOCALAPPDATA%\ClipVault\data` 保存配置和剪贴板历史。
 - 尝试注册开机自启动。
 - 在系统托盘常驻运行。
 
@@ -101,14 +101,16 @@ release\ClipVault.exe
 
 ClipVault 当前是本地应用，不依赖云端账号，也不会主动上传剪贴板内容。
 
-本地数据默认保存在项目目录下：
+发布版本地数据默认保存在 `%LOCALAPPDATA%\ClipVault\data`；从源码运行时仍保存在项目目录的 `data/`。
 
 | 内容 | 路径 |
 | --- | --- |
-| 配置 | `data/config.json` |
-| 剪贴板数据库 | `data/clipboard.db` |
-| 图片文件 | `data/images/` |
-| 日志 | `data/app.log` |
+| 配置 | `%LOCALAPPDATA%\ClipVault\data\config.json` |
+| 剪贴板数据库 | `%LOCALAPPDATA%\ClipVault\data\clipboard.db` |
+| 图片文件 | `%LOCALAPPDATA%\ClipVault\data\images\` |
+| 日志 | `%LOCALAPPDATA%\ClipVault\data\app.log` |
+
+从旧版本升级时，ClipVault 首次启动会自动迁移同级 `data` 目录中的历史、图片和设置。迁移只复制，不会删除旧数据，也不会覆盖已有的新数据。
 
 注意：
 

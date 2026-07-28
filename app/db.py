@@ -8,18 +8,106 @@ from datetime import datetime, timedelta
 
 from .classifier import classify
 
+def _repository_root():
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
+
+def resolve_data_dir():
+    """Return the durable data directory for the current runtime."""
+    if not getattr(sys, "frozen", False):
+        return os.path.join(_repository_root(), "data")
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if not local_app_data:
+        local_app_data = os.path.join(os.path.expanduser("~"), "AppData", "Local")
+    return os.path.join(local_app_data, "ClipVault", "data")
+
+
+def legacy_data_dirs():
+    """Return ordered legacy locations used by earlier frozen builds."""
+    if not getattr(sys, "frozen", False):
+        return []
+    executable_dir = os.path.abspath(os.path.dirname(sys.executable))
+    candidates = [os.path.join(executable_dir, "data")]
+    if os.path.basename(executable_dir).lower() in {"dist", "release"}:
+        candidates.append(os.path.join(os.path.dirname(executable_dir), "data"))
+    unique = []
+    for candidate in candidates:
+        normalized = os.path.normcase(os.path.normpath(candidate))
+        if all(os.path.normcase(os.path.normpath(path)) != normalized for path in unique):
+            unique.append(candidate)
+    return unique
+
+
+def _copy_optional_file(source_dir, target_dir, name):
+    source = os.path.join(source_dir, name)
+    if os.path.isfile(source):
+        shutil.copy2(source, os.path.join(target_dir, name))
+
+
+def _copy_optional_tree(source_dir, target_dir, name):
+    source = os.path.join(source_dir, name)
+    if os.path.isdir(source):
+        shutil.copytree(source, os.path.join(target_dir, name), dirs_exist_ok=True)
+
+
+def _rewrite_migrated_image_paths(database_path, old_images_dir, new_images_dir):
+    connection = None
+    try:
+        connection = sqlite3.connect(database_path)
+        columns = {
+            row[1] for row in connection.execute("PRAGMA table_info(items)").fetchall()
+        }
+        if not {"image_path", "thumb_path"} <= columns:
+            return
+        for column in ("image_path", "thumb_path"):
+            rows = connection.execute(
+                f"SELECT id, {column} FROM items WHERE {column} IS NOT NULL"
+            ).fetchall()
+            for item_id, path in rows:
+                try:
+                    relative_path = os.path.relpath(path, old_images_dir)
+                except ValueError:
+                    continue
+                if relative_path == os.pardir or relative_path.startswith(os.pardir + os.sep):
+                    continue
+                connection.execute(
+                    f"UPDATE items SET {column}=? WHERE id=?",
+                    (os.path.join(new_images_dir, relative_path), item_id),
+                )
+        connection.commit()
+    except sqlite3.DatabaseError:
+        return
+    finally:
+        if connection is not None:
+            connection.close()
+
+
+def migrate_legacy_data(canonical_data_dir, legacy_data_dirs):
+    """Copy an old local store once, never changing or replacing its source."""
+    canonical_db = os.path.join(canonical_data_dir, "clipboard.db")
+    if os.path.exists(canonical_db):
+        return None
+    for legacy_dir in legacy_data_dirs:
+        legacy_db = os.path.join(legacy_dir, "clipboard.db")
+        if not os.path.isfile(legacy_db):
+            continue
+        os.makedirs(canonical_data_dir, exist_ok=True)
+        shutil.copy2(legacy_db, canonical_db)
+        _copy_optional_file(legacy_dir, canonical_data_dir, "config.json")
+        _copy_optional_tree(legacy_dir, canonical_data_dir, "images")
+        _copy_optional_tree(legacy_dir, canonical_data_dir, "backups")
+        _rewrite_migrated_image_paths(
+            canonical_db,
+            os.path.join(legacy_dir, "images"),
+            os.path.join(canonical_data_dir, "images"),
+        )
+        return legacy_dir
+    return None
+
+
+DATA_DIR = resolve_data_dir()
 if getattr(sys, "frozen", False):
-    # 打包为 exe 后，通常位于 <项目>/dist/ClipboardManager.exe。
-    # 让它与开发模式共享 <项目>/data，避免数据“分家”（历史各存一份）。
-    # 若被单独拷贝到别处，则数据放在 exe 同级目录，方便随身携带。
-    _exe_dir = os.path.dirname(sys.executable)
-    if os.path.basename(_exe_dir).lower() in {"dist", "release"}:
-        _ROOT = os.path.dirname(_exe_dir)
-    else:
-        _ROOT = _exe_dir
-else:
-    _ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DATA_DIR = os.path.join(_ROOT, "data")
+    migrate_legacy_data(DATA_DIR, legacy_data_dirs())
 IMG_DIR = os.path.join(DATA_DIR, "images")
 DB_PATH = os.path.join(DATA_DIR, "clipboard.db")
 

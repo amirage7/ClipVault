@@ -1,6 +1,6 @@
 """应用配置：目前主要保存可自定义的全局快捷键。
 
-配置保存在 data/config.json（打包成 exe 后位于可执行文件同级的 data 目录下），
+配置保存在 data/config.json（打包成 exe 后位于 %LOCALAPPDATA%\\ClipVault\\data），
 与数据库同一目录，保证数据/配置都留在本地、不依赖云端。
 """
 import json

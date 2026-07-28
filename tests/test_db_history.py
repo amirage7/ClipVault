@@ -5,6 +5,7 @@ import sqlite3
 import tempfile
 import unittest
 from datetime import datetime
+from unittest import mock
 
 from app import db
 
@@ -68,6 +69,66 @@ class DatabaseHistoryTests(unittest.TestCase):
         self.assertEqual(
             len(glob.glob(db.DB_PATH + ".pre-migration-*.bak")),
             1,
+        )
+
+    def test_frozen_build_uses_local_app_data(self):
+        local_app_data = os.path.join(self.temp.name, "AppData", "Local")
+        executable = os.path.join(self.temp.name, "Downloads", "ClipVault.exe")
+
+        with mock.patch.object(db.sys, "frozen", True, create=True), \
+                mock.patch.object(db.sys, "executable", executable), \
+                mock.patch.dict(os.environ, {"LOCALAPPDATA": local_app_data}):
+            resolved = db.resolve_data_dir()
+
+        self.assertEqual(
+            resolved,
+            os.path.join(local_app_data, "ClipVault", "data"),
+        )
+
+    def test_migrate_legacy_data_copies_files_only_into_empty_store(self):
+        legacy = os.path.join(self.temp.name, "Downloads", "data")
+        canonical = os.path.join(self.temp.name, "AppData", "Local", "ClipVault", "data")
+        os.makedirs(os.path.join(legacy, "images"))
+        os.makedirs(os.path.join(legacy, "backups"))
+        with open(os.path.join(legacy, "clipboard.db"), "wb") as handle:
+            handle.write(b"database")
+        with open(os.path.join(legacy, "config.json"), "w", encoding="utf-8") as handle:
+            handle.write('{"hotkey":"ctrl+alt+c"}')
+        with open(os.path.join(legacy, "images", "capture.png"), "wb") as handle:
+            handle.write(b"image")
+        with open(os.path.join(legacy, "backups", "clipboard.db.bak"), "wb") as handle:
+            handle.write(b"backup")
+
+        migrated_from = db.migrate_legacy_data(canonical, [legacy])
+
+        self.assertEqual(migrated_from, legacy)
+        with open(os.path.join(canonical, "clipboard.db"), "rb") as handle:
+            self.assertEqual(handle.read(), b"database")
+        with open(os.path.join(canonical, "config.json"), encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), '{"hotkey":"ctrl+alt+c"}')
+        with open(os.path.join(canonical, "images", "capture.png"), "rb") as handle:
+            self.assertEqual(handle.read(), b"image")
+        self.assertTrue(os.path.exists(os.path.join(canonical, "backups", "clipboard.db.bak")))
+
+        with open(os.path.join(canonical, "clipboard.db"), "wb") as handle:
+            handle.write(b"canonical")
+        self.assertIsNone(db.migrate_legacy_data(canonical, [legacy]))
+        with open(os.path.join(canonical, "clipboard.db"), "rb") as handle:
+            self.assertEqual(handle.read(), b"canonical")
+
+    def test_frozen_build_discovers_data_beside_executable_and_release_parent(self):
+        executable = os.path.join(self.temp.name, "release", "ClipVault.exe")
+
+        with mock.patch.object(db.sys, "frozen", True, create=True), \
+                mock.patch.object(db.sys, "executable", executable):
+            candidates = db.legacy_data_dirs()
+
+        self.assertEqual(
+            candidates,
+            [
+                os.path.join(self.temp.name, "release", "data"),
+                os.path.join(self.temp.name, "data"),
+            ],
         )
 
     def test_upsert_reuses_unpinned_text_and_increments_copy_count(self):
